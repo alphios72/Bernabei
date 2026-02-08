@@ -51,6 +51,7 @@ def run_scrape_job():
                             product_link=p_data.get("product_link"),
                             image_url=p_data.get("image_url"),
                             category=cat,
+                            current_price=p_data.get("price"),
                             last_checked_at=datetime.utcnow()
                         )
                         session.add(existing_product)
@@ -59,6 +60,7 @@ def run_scrape_job():
                     else:
                         existing_product.last_checked_at = datetime.utcnow()
                         if p_data.get("image_url"): existing_product.image_url = p_data.get("image_url")
+                        if p_data.get("price"): existing_product.current_price = p_data.get("price")
                         session.add(existing_product)
                         session.commit()
                         session.refresh(existing_product)

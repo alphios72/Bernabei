@@ -9,6 +9,7 @@ class Product(SQLModel, table=True):
     product_link: str
     image_url: Optional[str] = None
     category: Optional[str] = None
+    current_price: Optional[float] = None
     last_checked_at: Optional[datetime] = None
 
     price_history: List["PriceHistory"] = Relationship(back_populates="product")
