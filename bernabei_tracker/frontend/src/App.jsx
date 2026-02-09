@@ -10,6 +10,8 @@ const App = () => {
     const [loading, setLoading] = useState(false);
     const [scraping, setScraping] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterType, setFilterType] = useState('All');
+    const [sortBy, setSortBy] = useState('default');
 
     const fetchProducts = async () => {
         setLoading(true);
@@ -55,9 +57,24 @@ const App = () => {
         }
     };
 
-    const filteredProducts = products.filter(p => 
-        p.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredProducts = products
+        .filter(p => {
+            const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+            if (!matchesSearch) return false;
+
+            if (filterType === 'Lowest Price (€)') return p.is_lowest_all_time;
+            if (filterType === 'Discounted (%)') return p.discount_percentage > 0;
+            if (filterType === 'Price OK') return p.is_price_ok;
+            
+            return true;
+        })
+        .sort((a, b) => {
+            if (sortBy === 'discount_desc') return b.discount_percentage - a.discount_percentage;
+            if (sortBy === 'price_asc') return (a.current_price || 0) - (b.current_price || 0);
+            if (sortBy === 'price_desc') return (b.current_price || 0) - (a.current_price || 0);
+            if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
+            return 0;
+        });
 
     return (
         <div className="min-h-screen bg-gray-900 text-white p-6 font-sans">
@@ -90,6 +107,40 @@ const App = () => {
                     </button>
                 </div>
             </header>
+
+            {/* Filter Bar */}
+            <div className="flex flex-col md:flex-row justify-between items-center bg-gray-800 p-4 rounded-xl mb-6 shadow-lg border border-gray-700 gap-4">
+                <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
+                    {['All', 'Lowest Price (€)', 'Discounted (%)', 'Price OK'].map(filter => (
+                        <button
+                            key={filter}
+                            onClick={() => setFilterType(filter)}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                                filterType === filter 
+                                ? 'bg-purple-600 text-white' 
+                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            }`}
+                        >
+                            {filter}
+                        </button>
+                    ))}
+                </div>
+                
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                    <span className="text-gray-400 text-sm whitespace-nowrap">Sort by:</span>
+                    <select 
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5"
+                    >
+                        <option value="default">Default</option>
+                        <option value="discount_desc">Discount % (High to Low)</option>
+                        <option value="price_asc">Price (Low to High)</option>
+                        <option value="price_desc">Price (High to Low)</option>
+                        <option value="name_asc">Name (A-Z)</option>
+                    </select>
+                </div>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredProducts.map(product => (
@@ -104,10 +155,20 @@ const App = () => {
                             ) : (
                                 <div className="text-gray-400">No Image</div>
                             )}
-                            <div className="absolute top-2 right-2 flex flex-col gap-1">
-                                {product.current_price && (
+                            <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+                                {product.is_lowest_all_time && (
+                                    <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1">
+                                        <Tag size={12} /> €
+                                    </span>
+                                )}
+                                {product.discount_percentage > 0 && (
                                     <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
-                                        SALE
+                                        -{product.discount_percentage}%
+                                    </span>
+                                )}
+                                {product.is_price_ok && (
+                                    <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
+                                        Prezzo OK
                                     </span>
                                 )}
                             </div>
@@ -126,9 +187,12 @@ const App = () => {
                             <div className="flex items-end justify-between mb-4">
                                 <div className="flex flex-col">
                                     <span className="text-sm text-gray-400">Current Price</span>
-                                    <span className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
-                                        €{product.current_price?.toFixed(2) || 'N/A'}
-                                    </span>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
+                                            €{product.current_price?.toFixed(2) || 'N/A'}
+                                        </span>
+                                        {/* Optional: Show original price if discounted? We don't have max price in product model directly, but discount implies it. */}
+                                    </div>
                                 </div>
                                 <a 
                                     href={product.product_link} 

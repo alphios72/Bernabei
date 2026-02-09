@@ -2,8 +2,7 @@ from typing import Optional, List
 from datetime import datetime
 from sqlmodel import Field, SQLModel, Relationship
 
-class Product(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+class ProductBase(SQLModel):
     bernabei_code: str = Field(index=True, unique=True) # Unique ID from site
     name: str = Field(index=True)
     product_link: str
@@ -12,7 +11,15 @@ class Product(SQLModel, table=True):
     current_price: Optional[float] = None
     last_checked_at: Optional[datetime] = None
 
+class Product(ProductBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
     price_history: List["PriceHistory"] = Relationship(back_populates="product")
+
+class ProductRead(ProductBase):
+    id: int
+    is_price_ok: bool = False
+    is_lowest_all_time: bool = False
+    discount_percentage: float = 0.0
 
 class PriceHistory(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
