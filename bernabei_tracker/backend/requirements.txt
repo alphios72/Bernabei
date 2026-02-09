@@ -4,3 +4,4 @@ sqlmodel
 requests
 beautifulsoup4
 aiosqlite
+apscheduler

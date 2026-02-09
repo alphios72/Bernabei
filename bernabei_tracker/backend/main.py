@@ -7,6 +7,8 @@ from scraper import scrape_category_page
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 
+from apscheduler.schedulers.background import BackgroundScheduler
+
 app = FastAPI(title="Bernabei Price Tracker")
 
 app.add_middleware(
@@ -20,6 +22,12 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+    
+    # Initialize Scheduler
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(run_scrape_job, 'interval', hours=8)
+    scheduler.start()
+    print("Scheduler started: Scraping job will run every 8 hours.")
 
 @app.post("/scrape")
 def scrape_products(background_tasks: BackgroundTasks):
