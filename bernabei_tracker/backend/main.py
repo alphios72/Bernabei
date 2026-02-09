@@ -8,6 +8,8 @@ from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from fastapi.staticfiles import StaticFiles
+import os
 
 app = FastAPI(title="Bernabei Price Tracker")
 
@@ -28,6 +30,11 @@ def on_startup():
     scheduler.add_job(run_scrape_job, 'interval', hours=8)
     scheduler.start()
     print("Scheduler started: Scraping job will run every 8 hours.")
+
+# Serve static files if they exist (for single-container deployment)
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 @app.post("/scrape")
 def scrape_products(background_tasks: BackgroundTasks):
