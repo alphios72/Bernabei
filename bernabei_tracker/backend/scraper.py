@@ -53,7 +53,7 @@ def scrape_category_page(url_suffix):
     
     all_products_data = []
     page = 1
-    last_page_product_ids = set()
+    last_page_count = None
     
     while True:
         # Construct parameters for AJAX
@@ -88,7 +88,6 @@ def scrape_category_page(url_suffix):
                 break
             
             page_products = []
-            current_page_ids = set()
             
             for product in product_list:
                 try:
@@ -108,9 +107,12 @@ def scrape_category_page(url_suffix):
                     p_id = extract_product_id(product)
                     if not p_id: 
                         # fallback to generating one from link slug
-                        p_id = link.split('/')[-1] if link else f"unknown_{int(time.time()*1000)}"
-
-                    current_page_ids.add(p_id)
+                        if link:
+                            p_id = link.split('/')[-1]
+                        else:
+                            # Deterministic hash fallback
+                            import hashlib
+                            p_id = f"unknown_{hashlib.md5(name.encode()).hexdigest()[:10]}"
 
                     # Image
                     img_elem = product.find('img')
@@ -170,14 +172,17 @@ def scrape_category_page(url_suffix):
                 print(f"No valid products parsed on page {page}. Stopping.")
                 break
                 
-            # Check for duplicates (Finite Scroll Loop Detection)
-            # If the set of IDs on this page matches the set of IDs on the last page, we are looping.
-            # This handles sites that return page N content for any page > N.
-            if page > 1 and current_page_ids == last_page_product_ids:
-                 print(f"Page {page} content is identical to page {page-1}. Reached end of infinite scroll. Stopping.")
+            # Count Stop Strategy
+            current_count = len(page_products)
+            
+            # If we have a previous count and the current count is different,
+            # it means we hit the last page (it breaks the pattern of full pages).
+            if last_page_count is not None and current_count != last_page_count:
+                 print(f"Page {page} has different product count ({current_count}) than previous ({last_page_count}). Considering it the last page. Stopping.")
+                 all_products_data.extend(page_products)
                  break
             
-            last_page_product_ids = current_page_ids
+            last_page_count = current_count
             all_products_data.extend(page_products)
             print(f"Added {len(page_products)} products from page {page}.")
             

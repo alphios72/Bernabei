@@ -111,6 +111,9 @@ const App = () => {
             {/* Filter Bar */}
             <div className="flex flex-col md:flex-row justify-between items-center bg-gray-800 p-4 rounded-xl mb-6 shadow-lg border border-gray-700 gap-4">
                 <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
+                    <span className="text-gray-400 text-sm font-medium mr-2 whitespace-nowrap bg-gray-900 px-3 py-1 rounded-lg border border-gray-700">
+                        {filteredProducts.length} / {products.length}
+                    </span>
                     {['All', 'Lowest Price (€)', 'Discounted (%)', 'Price OK'].map(filter => (
                         <button
                             key={filter}
