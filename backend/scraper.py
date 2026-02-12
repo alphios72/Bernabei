@@ -76,13 +76,16 @@ def scrape_category_page(url_suffix):
             'p': page
         }
         
-        print(f"Scraping page {page}: {full_base_url} with params {params}...")
+        print(f"Scraping page {page}: {full_base_url} with params {params}...", flush=True)
         
         try:
-            response = requests.get(full_base_url, headers=headers, params=params)
+            response = requests.get(full_base_url, headers=headers, params=params, timeout=30)
             
             if response.status_code == 404:
-                print(f"Page {page} returned 404. Stopping.")
+                print(f"Page {page} returned 404. Stopping.", flush=True)
+                break
+            if response.status_code == 403:
+                print(f"CRITICAL ERROR: Page {page} returned 403 Forbidden. The scraper is BLOCKED by the website.", flush=True)
                 break
             response.raise_for_status()
             
@@ -91,14 +94,14 @@ def scrape_category_page(url_suffix):
                 html_content = json_data.get('productlist', '')
             except ValueError:
                 # Fallback if not JSON (maybe first page isn't ajax? or blocking?)
-                print(f"Page {page} did not return JSON. Falling back to text.")
+                print(f"Page {page} did not return JSON. Falling back to text.", flush=True)
                 html_content = response.text
 
             soup = BeautifulSoup(html_content, 'html.parser')
             product_list = soup.find_all('li', class_='item')
             
             if not product_list:
-                print(f"No products found on page {page}. Stopping.")
+                print(f"No products found on page {page}. Stopping.", flush=True)
                 break
             
             page_products = []
@@ -179,11 +182,11 @@ def scrape_category_page(url_suffix):
                     page_products.append(product_data)
                     
                 except Exception as e:
-                    print(f"Error parsing product: {e}")
+                    print(f"Error parsing product: {e}", flush=True)
                     continue
             
             if not page_products:
-                print(f"No valid products parsed on page {page}. Stopping.")
+                print(f"No valid products parsed on page {page}. Stopping.", flush=True)
                 break
                 
             # Count Stop Strategy
@@ -192,13 +195,13 @@ def scrape_category_page(url_suffix):
             # If we have a previous count and the current count is different,
             # it means we hit the last page (it breaks the pattern of full pages).
             if last_page_count is not None and current_count != last_page_count:
-                 print(f"Page {page} has different product count ({current_count}) than previous ({last_page_count}). Considering it the last page. Stopping.")
+                 print(f"Page {page} has different product count ({current_count}) than previous ({last_page_count}). Considering it the last page. Stopping.", flush=True)
                  all_products_data.extend(page_products)
                  break
             
             last_page_count = current_count
             all_products_data.extend(page_products)
-            print(f"Added {len(page_products)} products from page {page}.")
+            print(f"Added {len(page_products)} products from page {page}.", flush=True)
             
             page += 1
             
@@ -206,11 +209,11 @@ def scrape_category_page(url_suffix):
             min_delay_min = int(os.getenv("SCRAPER_DELAY_MIN", 1))
             max_delay_min = int(os.getenv("SCRAPER_DELAY_MAX", 5))
             sleep_seconds = random.uniform(min_delay_min * 60, max_delay_min * 60)
-            print(f"Sleeping for {sleep_seconds:.2f} seconds...")
+            print(f"Sleeping for {sleep_seconds:.2f} seconds...", flush=True)
             time.sleep(sleep_seconds)
             
         except Exception as e:
-            print(f"Error fetching URL {full_base_url} (page {page}): {e}")
+            print(f"Error fetching URL {full_base_url} (page {page}): {e}", flush=True)
             break
             
     return all_products_data
