@@ -1,0 +1,10 @@
+**/*.db
+**/*.csv
+**/node_modules
+**/dist
+**/__pycache__
+**/.git
+**/.vscode
+**/build_and_push.ps1
+**/docker-compose.yml
+**/docker-compose-synology.yml

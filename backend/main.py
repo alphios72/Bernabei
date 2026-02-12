@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from sqlmodel import Session, select
 from typing import List, Optional
-from database import create_db_and_tables, get_session, engine
+from database import create_db_and_tables, get_session, verify_db_persistence, engine
 from models import Product, PriceHistory, ProductRead
 from scraper import scrape_category_page
 from datetime import datetime
@@ -24,6 +24,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+    verify_db_persistence()
     
     # Initialize Scheduler
     scheduler = BackgroundScheduler()
