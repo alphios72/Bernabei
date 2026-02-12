@@ -12,6 +12,16 @@ import os
 from threading import Thread
 import time
 
+app = FastAPI(title="Bernabei Price Tracker")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Function to run scraping in an infinite loop
 def scrape_forever():
     while True:
