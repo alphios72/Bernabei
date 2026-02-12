@@ -3,6 +3,8 @@ from bs4 import BeautifulSoup
 import re
 from datetime import datetime
 import time
+import random
+import os
 
 def parse_price(price_str):
     if not price_str: return None
@@ -187,7 +189,13 @@ def scrape_category_page(url_suffix):
             print(f"Added {len(page_products)} products from page {page}.")
             
             page += 1
-            time.sleep(1) # Be polite
+            
+            # Random delay to avoid blocking
+            min_delay_min = int(os.getenv("SCRAPER_DELAY_MIN", 1))
+            max_delay_min = int(os.getenv("SCRAPER_DELAY_MAX", 5))
+            sleep_seconds = random.uniform(min_delay_min * 60, max_delay_min * 60)
+            print(f"Sleeping for {sleep_seconds:.2f} seconds...")
+            time.sleep(sleep_seconds)
             
         except Exception as e:
             print(f"Error fetching URL {current_url}: {e}")

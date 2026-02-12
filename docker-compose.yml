@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   backend:
@@ -8,8 +8,10 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/bernabei.db:/app/bernabei.db
+    environment:
+      - SCRAPER_DELAY_MIN=1
+      - SCRAPER_DELAY_MAX=5
     restart: always
-
   frontend:
     build:
       context: ./frontend
