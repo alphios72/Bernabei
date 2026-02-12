@@ -32,10 +32,6 @@ def on_startup():
     scheduler.start()
     print("Scheduler started: Scraping job will run every 8 hours.")
 
-# Serve static files if they exist (for single-container deployment)
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 @app.post("/scrape")
 def scrape_products(background_tasks: BackgroundTasks):
@@ -186,3 +182,9 @@ def get_product_details(product_id: int, session: Session = Depends(get_session)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
+
+# Serve static files if they exist (for single-container deployment)
+# This MUST be after all API routes to avoid shadowing them
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
