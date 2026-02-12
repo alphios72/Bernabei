@@ -38,7 +38,7 @@ def extract_product_id(product_elem):
         pass
     return None
 
-def scrape_category_page(url_suffix):
+def scrape_category_page(url_suffix, save_callback=None):
     base_url = "https://www.bernabei.it"
     # Ensure clean base path without query params for pagination appending
     if "?" in url_suffix:
@@ -201,6 +201,15 @@ def scrape_category_page(url_suffix):
             
             last_page_count = current_count
             all_products_data.extend(page_products)
+            
+            # Save page data if callback provided
+            if save_callback:
+                try:
+                    save_callback(page_products)
+                    print(f"Saved {len(page_products)} products to DB.", flush=True)
+                except Exception as e:
+                    print(f"Error saving page {page} to DB: {e}", flush=True)
+
             print(f"Added {len(page_products)} products from page {page}.", flush=True)
             
             page += 1

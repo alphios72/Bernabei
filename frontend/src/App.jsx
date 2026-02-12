@@ -73,6 +73,8 @@ const App = () => {
             if (sortBy === 'price_asc') return (a.current_price || 0) - (b.current_price || 0);
             if (sortBy === 'price_desc') return (b.current_price || 0) - (a.current_price || 0);
             if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
+            if (sortBy === 'date_desc') return new Date(b.last_checked_at || 0) - new Date(a.last_checked_at || 0);
+            if (sortBy === 'date_asc') return new Date(a.last_checked_at || 0) - new Date(b.last_checked_at || 0);
             return 0;
         });
 
@@ -141,6 +143,8 @@ const App = () => {
                         <option value="price_asc">Price (Low to High)</option>
                         <option value="price_desc">Price (High to Low)</option>
                         <option value="name_asc">Name (A-Z)</option>
+                        <option value="date_desc">Last Updated (Newest)</option>
+                        <option value="date_asc">Last Updated (Oldest)</option>
                     </select>
                 </div>
             </div>
@@ -205,6 +209,12 @@ const App = () => {
                                 >
                                     Visit Store ↗
                                 </a>
+
+                            </div>
+
+                            <div className="flex justify-between items-center text-xs text-gray-500 mb-4">
+                                <span>Last Update:</span>
+                                <span>{product.last_checked_at ? new Date(product.last_checked_at).toLocaleString() : 'N/A'}</span>
                             </div>
 
                             <button 

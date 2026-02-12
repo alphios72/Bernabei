@@ -41,91 +41,112 @@ def scrape_products(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_scrape_job)
     return {"message": "Scraping job started in background"}
 
-def run_scrape_job():
+# Helper function to save a batch of products to DB
+# This is called by the scraper after each page
+def save_products_to_db(products_data: List[dict]):
+    if not products_data: return
+    
     with Session(engine) as session:
-        # Categories to scrape
-        categories = ["/vino-online/", "/champagne/"]
-        
-        for cat in categories:
+        for p_data in products_data:
             try:
-                # Scrape logic...
-                # Need to import scrape_category_page inside or ensure it's available
-                print(f"Starting scrape for {cat}")
-                products_data = scrape_category_page(cat)
+                # Check if product exists
+                # Use unique constraint on bernabei_code
+                statement = select(Product).where(Product.bernabei_code == p_data["bernabei_code"])
+                existing_product = session.exec(statement).first()
                 
-                for p_data in products_data:
-                    # Check if product exists
-                    # Use unique constraint on bernabei_code
-                    statement = select(Product).where(Product.bernabei_code == p_data["bernabei_code"])
-                    existing_product = session.exec(statement).first()
-                    
-                    if not existing_product:
-                        existing_product = Product(
-                            bernabei_code=p_data.get("bernabei_code"),
-                            name=p_data.get("name"),
-                            product_link=p_data.get("product_link"),
-                            image_url=p_data.get("image_url"),
-                            category=cat,
-                            current_price=p_data.get("price"),
-                            last_checked_at=datetime.utcnow()
-                        )
-                        session.add(existing_product)
-                        session.commit()
-                        session.refresh(existing_product)
+                if not existing_product:
+                    existing_product = Product(
+                        bernabei_code=p_data.get("bernabei_code"),
+                        name=p_data.get("name"),
+                        product_link=p_data.get("product_link"),
+                        image_url=p_data.get("image_url"),
+                        category=p_data.get("category", ""), # Category might be missing in p_data if not passed, but we can fix scraper to include it or pass it in closure
+                        current_price=p_data.get("price"),
+                        last_checked_at=datetime.utcnow()
+                    )
+                    session.add(existing_product)
+                    session.commit()
+                    session.refresh(existing_product)
+                else:
+                    existing_product.last_checked_at = datetime.utcnow()
+                    if p_data.get("image_url"): existing_product.image_url = p_data.get("image_url")
+                    if p_data.get("price"): existing_product.current_price = p_data.get("price")
+                    session.add(existing_product)
+                    session.commit()
+                    session.refresh(existing_product)
+                
+                # Add Price History
+                # Add Price History Logic
+                # Rules:
+                # 1. New Product -> Add
+                # 2. No reading today -> Add
+                # 3. Price changed -> Add
+                
+                # Get last history entry
+                last_history = session.exec(
+                    select(PriceHistory)
+                    .where(PriceHistory.product_id == existing_product.id)
+                    .order_by(PriceHistory.timestamp.desc())
+                ).first()
+                
+                should_add_history = False
+                
+                if not last_history:
+                    should_add_history = True
+                else:
+                    # Check price change
+                    if last_history.price != (p_data.get("price") or 0.0):
+                            should_add_history = True
                     else:
-                        existing_product.last_checked_at = datetime.utcnow()
-                        if p_data.get("image_url"): existing_product.image_url = p_data.get("image_url")
-                        if p_data.get("price"): existing_product.current_price = p_data.get("price")
-                        session.add(existing_product)
-                        session.commit()
-                        session.refresh(existing_product)
-                    
-                    # Add Price History
-                    # Add Price History Logic
-                    # Rules:
-                    # 1. New Product -> Add
-                    # 2. No reading today -> Add
-                    # 3. Price changed -> Add
-                    
-                    # Get last history entry
-                    last_history = session.exec(
-                        select(PriceHistory)
-                        .where(PriceHistory.product_id == existing_product.id)
-                        .order_by(PriceHistory.timestamp.desc())
-                    ).first()
-                    
-                    should_add_history = False
-                    
-                    if not last_history:
-                        should_add_history = True
-                    else:
-                        # Check price change
-                        if last_history.price != (p_data.get("price") or 0.0):
-                             should_add_history = True
-                        else:
-                            # Check if we have a reading today
-                            last_date = last_history.timestamp.date()
-                            today_date = datetime.utcnow().date()
-                            if last_date != today_date:
-                                should_add_history = True
-                    
-                    if should_add_history:
-                        history = PriceHistory(
-                            product_id=existing_product.id,
-                            price=p_data.get("price") or 0.0,
-                            ordinary_price=p_data.get("ordinary_price"),
-                            lowest_price_30_days=p_data.get("lowest_price_30_days"),
-                            tags=p_data.get("tags"),
-                            timestamp=datetime.utcnow()
-                        )
-                        session.add(history)
-                        session.commit()
-                    else:
-                        print(f"Skipping history for {existing_product.name} (No change/Already updated today)")
+                        # Check if we have a reading today
+                        last_date = last_history.timestamp.date()
+                        today_date = datetime.utcnow().date()
+                        if last_date != today_date:
+                            should_add_history = True
+                
+                if should_add_history:
+                    history = PriceHistory(
+                        product_id=existing_product.id,
+                        price=p_data.get("price") or 0.0,
+                        ordinary_price=p_data.get("ordinary_price"),
+                        lowest_price_30_days=p_data.get("lowest_price_30_days"),
+                        tags=p_data.get("tags"),
+                        timestamp=datetime.utcnow()
+                    )
+                    session.add(history)
+                    session.commit()
             except Exception as e:
-                print(f"Error scraping category {cat}: {e}")
-                
-        print("Scraping job completed.")
+                print(f"Error saving product {p_data.get('name')}: {e}", flush=True)
+
+def run_scrape_job():
+    # Categories to scrape
+    categories = ["/vino-online/", "/champagne/"]
+    
+    for cat in categories:
+        try:
+            # Scrape logic...
+            print(f"Starting scrape for {cat}", flush=True)
+            
+            # Define a closure or partial to pass category info if needed
+            # But wait, product_data from scraper doesn't have 'category' field usually?
+            # Let's verify scraper.py. It sets category=cat? 
+            # Checked scraper.py: it does NOT set 'category' in the dictionary!
+            # We need to ensure 'category' is passed.
+            
+            # We'll create a wrapper function to inject the category
+            def save_callback_wrapper(batch):
+                # Inject category into each item
+                for item in batch:
+                    item['category'] = cat
+                save_products_to_db(batch)
+            
+            # Pass the callback to the scraper
+            scrape_category_page(cat, save_callback=save_callback_wrapper)
+            
+        except Exception as e:
+            print(f"Error scraping category {cat}: {e}", flush=True)
+            
+    print("Scraping job completed.", flush=True)
 
 @app.get("/products", response_model=List[ProductRead])
 def get_products(session: Session = Depends(get_session)):
