@@ -6,31 +6,34 @@ from models import Product, PriceHistory, ProductRead
 from scraper import scrape_category_page
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
-
-from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi.staticfiles import StaticFiles
 import os
 
-app = FastAPI(title="Bernabei Price Tracker")
+from threading import Thread
+import time
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Function to run scraping in an infinite loop
+def scrape_forever():
+    while True:
+        try:
+            print("Starting scraping cycle...", flush=True)
+            run_scrape_job()
+            print("Scraping cycle finished. Restarting in 60 seconds...", flush=True)
+        except Exception as e:
+            print(f"Error in scraping loop: {e}", flush=True)
+        
+        # Wait a bit before restarting to avoid hammering if job crashes immediately
+        time.sleep(60)
 
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
     verify_db_persistence()
     
-    # Initialize Scheduler
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(run_scrape_job, 'interval', hours=8)
-    scheduler.start()
-    print("Scheduler started: Scraping job will run every 8 hours.")
+    # Initialize Continuous Scraper in Background Thread
+    scraper_thread = Thread(target=scrape_forever, daemon=True)
+    scraper_thread.start()
+    print("Continuous scraper thread started.", flush=True)
 
 
 @app.post("/scrape")
@@ -41,7 +44,7 @@ def scrape_products(background_tasks: BackgroundTasks):
 def run_scrape_job():
     with Session(engine) as session:
         # Categories to scrape
-        categories = ["/vino-online/", "/spiriti-online/"] #, "/bollicine-online/"
+        categories = ["/vino-online/", "/champagne/"]
         
         for cat in categories:
             try:
