@@ -198,7 +198,7 @@ def scrape_category_page(url_suffix):
             time.sleep(sleep_seconds)
             
         except Exception as e:
-            print(f"Error fetching URL {current_url}: {e}")
+            print(f"Error fetching URL {full_base_url} (page {page}): {e}")
             break
             
     return all_products_data
