@@ -16,7 +16,7 @@ const App = () => {
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const res = await axios.get('http://localhost:8000/products');
+            const res = await axios.get('/products');
             setProducts(res.data);
         } catch (err) {
             console.error(err);
@@ -32,7 +32,7 @@ const App = () => {
     const handleScrape = async () => {
         setScraping(true);
         try {
-            await axios.post('http://localhost:8000/scrape');
+            await axios.post('/scrape');
             setTimeout(fetchProducts, 5000); 
         } catch (err) {
             console.error(err);
@@ -50,7 +50,7 @@ const App = () => {
         
         setSelectedProduct(product);
         try {
-            const res = await axios.get(`http://localhost:8000/products/${product.id}/history`);
+            const res = await axios.get(`/products/${product.id}/history`);
             setHistory(res.data);
         } catch (err) {
             console.error(err);
