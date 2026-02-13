@@ -14,4 +14,4 @@ services:
       - TZ=Europe/Rome
       - SCRAPER_DELAY_MIN=1
       - SCRAPER_DELAY_MAX=5
-      - SCRAPER_PROXY= # Format: http://user:pass@host:port
+      - SCRAPER_PROXY=http://elbdzkgg:8smav65siz70@45.38.107.97:6014 # Format: http://user:pass@host:port
