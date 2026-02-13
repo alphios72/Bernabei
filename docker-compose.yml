@@ -11,7 +11,7 @@ services:
     environment:
       - SCRAPER_DELAY_MIN=1
       - SCRAPER_DELAY_MAX=5
-      - SCRAPER_PROXY=http://elbdzkgg:8smav65siz70@64.137.96.74:6641 # Format: http://user:pass@host:port
+      - SCRAPER_PROXY=http://elbdzkgg:8smav65siz70@45.38.107.97:6014 # Format: http://user:pass@host:port
     restart: always
   frontend:
     build:
