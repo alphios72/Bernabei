@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 from typing import List, Optional
 from database import create_db_and_tables, get_session, verify_db_persistence, engine
 from models import Product, PriceHistory, ProductRead
-from scraper import scrape_category_page
+from scraper import scrape_category_page, BlockingError
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -24,11 +24,29 @@ app.add_middleware(
 
 # Function to run scraping in an infinite loop
 def scrape_forever():
+    current_cat_idx = 0
+    current_page = 1
+    
     while True:
         try:
-            print("Starting scraping cycle...", flush=True)
-            run_scrape_job()
+            print(f"Starting scraping cycle from Category Index {current_cat_idx}, Page {current_page}...", flush=True)
+            run_scrape_job(start_category_idx=current_cat_idx, start_page=current_page)
             print("Scraping cycle finished. Restarting in 60 seconds...", flush=True)
+            
+            # Reset state on successful completion
+            current_cat_idx = 0
+            current_page = 1
+            
+        except BlockingError as e:
+            print(f"Scraper blocked at Category Index {getattr(e, 'category_index', 0)}, Page {e.page_number}!", flush=True)
+            print("Sleeping for 30 minutes before resuming...", flush=True)
+            
+            # Save state to resume later
+            current_cat_idx = getattr(e, 'category_index', 0)
+            current_page = e.page_number
+            
+            time.sleep(1800)
+            continue
         except Exception as e:
             print(f"Error in scraping loop: {e}", flush=True)
         
@@ -128,21 +146,25 @@ def save_products_to_db(products_data: List[dict]):
             except Exception as e:
                 print(f"Error saving product {p_data.get('name')}: {e}", flush=True)
 
-def run_scrape_job():
+def run_scrape_job(start_category_idx=0, start_page=1):
     # Categories to scrape
     categories = ["/vino-online/", "/champagne/"]
     
-    for cat in categories:
+    for i, cat in enumerate(categories):
+        # Skip categories we've already done
+        if i < start_category_idx:
+            continue
+            
         try:
+            # Determine start page for this category
+            # If we are resuming the same category where we stopped, use start_page.
+            # Otherwise (new category), start from 1.
+            current_start_page = start_page if i == start_category_idx else 1
+            
             # Scrape logic...
-            print(f"Starting scrape for {cat}", flush=True)
+            print(f"Starting scrape for {cat} from page {current_start_page}", flush=True)
             
             # Define a closure or partial to pass category info if needed
-            # But wait, product_data from scraper doesn't have 'category' field usually?
-            # Let's verify scraper.py. It sets category=cat? 
-            # Checked scraper.py: it does NOT set 'category' in the dictionary!
-            # We need to ensure 'category' is passed.
-            
             # We'll create a wrapper function to inject the category
             def save_callback_wrapper(batch):
                 # Inject category into each item
@@ -150,9 +172,14 @@ def run_scrape_job():
                     item['category'] = cat
                 save_products_to_db(batch)
             
-            # Pass the callback to the scraper
-            scrape_category_page(cat, save_callback=save_callback_wrapper)
+            # Pass the callback and start_page to the scraper
+            scrape_category_page(cat, save_callback=save_callback_wrapper, start_page=current_start_page)
             
+        except BlockingError as e:
+            print(f"BlockingError in category {cat} at page {e.page_number}. Stopping job to trigger cooldown.", flush=True)
+            # Attach the current category index to the exception so the main loop knows where to resume
+            e.category_index = i
+            raise e
         except Exception as e:
             print(f"Error scraping category {cat}: {e}", flush=True)
             

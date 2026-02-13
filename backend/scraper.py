@@ -38,7 +38,13 @@ def extract_product_id(product_elem):
         pass
     return None
 
-def scrape_category_page(url_suffix, save_callback=None):
+class BlockingError(Exception):
+    def __init__(self, message, page_number):
+        self.message = message
+        self.page_number = page_number
+        super().__init__(self.message)
+
+def scrape_category_page(url_suffix, save_callback=None, start_page=1):
     base_url = "https://www.bernabei.it"
     # Ensure clean base path without query params for pagination appending
     if "?" in url_suffix:
@@ -65,8 +71,20 @@ def scrape_category_page(url_suffix, save_callback=None):
         'Connection': 'keep-alive'
     }
     
+    # Proxy Configuration
+    proxies = None
+    proxy_url = os.getenv("SCRAPER_PROXY")
+    if proxy_url:
+        print(f"🔐 PROXY ENABLED for {clean_suffix}: {proxy_url}", flush=True)
+        proxies = {
+            "http": proxy_url,
+            "https": proxy_url
+        }
+    else:
+        print(f"⚠️ NO PROXY configured for {clean_suffix}. Using direct connection.", flush=True)
+    
     all_products_data = []
-    page = 1
+    page = start_page
     last_page_count = None
     
     while True:
@@ -76,17 +94,18 @@ def scrape_category_page(url_suffix, save_callback=None):
             'p': page
         }
         
-        print(f"Scraping page {page}: {full_base_url} with params {params}...", flush=True)
+        proxy_status = " [PROXY: ON]" if proxies else " [PROXY: OFF]"
+        print(f"Scraping page {page}: {full_base_url}{proxy_status} with params {params}...", flush=True)
         
         try:
-            response = requests.get(full_base_url, headers=headers, params=params, timeout=30)
+            response = requests.get(full_base_url, headers=headers, params=params, proxies=proxies, timeout=30)
             
             if response.status_code == 404:
                 print(f"Page {page} returned 404. Stopping.", flush=True)
                 break
             if response.status_code == 403:
                 print(f"CRITICAL ERROR: Page {page} returned 403 Forbidden. The scraper is BLOCKED by the website.", flush=True)
-                break
+                raise BlockingError("Scraper blocked by website (403 Forbidden)", page_number=page)
             response.raise_for_status()
             
             try:
