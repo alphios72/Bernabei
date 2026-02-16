@@ -189,49 +189,62 @@ def run_scrape_job(start_category_idx=0, start_page=1):
 
 @app.get("/products", response_model=List[ProductRead])
 def get_products(session: Session = Depends(get_session)):
-    statement = select(Product)
-    products = session.exec(statement).all()
+    # Optimized query to avoid N+1 problem
+    # We fetch products and aggregated history stats in one go.
+    from sqlalchemy import text
     
-    result = []
-    for p in products:
-        # Get history for this product
-        hist_statement = select(PriceHistory).where(PriceHistory.product_id == p.id)
-        history = session.exec(hist_statement).all()
+    query = text("""
+    SELECT 
+        p.id, p.bernabei_code, p.name, p.product_link, p.image_url, 
+        p.category, p.current_price, p.last_checked_at,
+        MIN(h.price) as min_price,
+        AVG(h.price) as avg_price,
+        MAX(h.price) as max_price
+    FROM product p
+    LEFT JOIN pricehistory h ON p.id = h.product_id AND h.price > 0
+    GROUP BY p.id
+    """)
+    
+    results = session.exec(query).all()
+    
+    products_read = []
+    for row in results:
+        # Unpack row
+        # Order matches SELECT
+        p_id, code, name, link, img, cat, curr, last_check, min_p, avg_p, max_p = row
         
+        # Determine stats
+        is_lowest = False
         is_price_ok = False
-        is_lowest_all_time = False
-        discount_percentage = 0.0
+        discount = 0.0
         
-        if history and p.current_price:
-            prices = [h.price for h in history if h.price > 0]
-            if prices:
-                # 1. Check if lowest all time
-                min_price = min(prices)
-                if p.current_price <= min_price:
-                    is_lowest_all_time = True
+        if curr and min_p is not None:
+            if curr <= min_p:
+                is_lowest = True
+            
+            if avg_p and curr < avg_p:
+                is_price_ok = True
                 
-                # 2. Check if Price OK (lower than avg last 30 days)
-                # Filter last 30 days
-                # For simplicity in this iteration we take all history or last N items if 30 days is hard without import timedelta
-                # Let's use all history for avg as a proxy or last 30 entries
-                avg_price = sum(prices) / len(prices)
-                if p.current_price < avg_price:
-                    is_price_ok = True
-                
-                # 3. Discount % against Max
-                max_price = max(prices)
-                if max_price > 0 and max_price > p.current_price:
-                    discount_percentage = ((max_price - p.current_price) / max_price) * 100
+            if max_p and max_p > curr:
+                discount = ((max_p - curr) / max_p) * 100
         
-        # Create Read model
-        p_read = ProductRead.from_orm(p)
-        p_read.is_price_ok = is_price_ok
-        p_read.is_lowest_all_time = is_lowest_all_time
-        p_read.discount_percentage = round(discount_percentage, 0)
+        # Build Read Model
+        p_read = ProductRead(
+            id=p_id,
+            bernabei_code=code,
+            name=name,
+            product_link=link,
+            image_url=img,
+            category=cat,
+            current_price=curr,
+            last_checked_at=last_check,
+            is_price_ok=is_price_ok,
+            is_lowest_all_time=is_lowest,
+            discount_percentage=round(discount, 0)
+        )
+        products_read.append(p_read)
         
-        result.append(p_read)
-        
-    return result
+    return products_read
 
 @app.get("/products/{product_id}/history", response_model=List[PriceHistory])
 def get_product_history(product_id: int, session: Session = Depends(get_session)):
