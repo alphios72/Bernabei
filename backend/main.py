@@ -4,6 +4,7 @@ from typing import List, Optional
 from database import create_db_and_tables, get_session, verify_db_persistence, engine
 from models import Product, PriceHistory, ProductRead
 from scraper import scrape_category_page, BlockingError
+from analytics import calculate_convenience_score
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -53,10 +54,26 @@ def scrape_forever():
         # Wait a bit before restarting to avoid hammering if job crashes immediately
         time.sleep(60)
 
+def ensure_convenience_score_column():
+    """Manually add column if missing because SQLModel create_all doesn't alter existing tables"""
+    from sqlalchemy import text
+    with Session(engine) as session:
+        try:
+            # Try selecting the column to see if it exists
+            session.exec(text("SELECT convenience_score FROM product LIMIT 1"))
+        except Exception:
+            print("Adding missing 'convenience_score' column to product table...", flush=True)
+            try:
+                session.exec(text("ALTER TABLE product ADD COLUMN convenience_score FLOAT"))
+                session.commit()
+            except Exception as e:
+                print(f"Error adding column: {e}", flush=True)
+
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
     verify_db_persistence()
+    ensure_convenience_score_column()
     
     # Initialize Continuous Scraper in Background Thread
     scraper_thread = Thread(target=scrape_forever, daemon=True)
@@ -148,6 +165,38 @@ def save_products_to_db(products_data: List[dict]):
             except Exception as e:
                 print(f"Error saving product {p_data.get('name')}: {e}", flush=True)
 
+def update_all_scores():
+    """Background task to update convenience scores for all products"""
+    print("Starting batch update of Convenience Scores...", flush=True)
+    try:
+        with Session(engine) as session:
+            products = session.exec(select(Product)).all()
+            count = 0
+            for p in products:
+                # Fetch history
+                history = session.exec(select(PriceHistory).where(PriceHistory.product_id == p.id)).all()
+                if not history:
+                    continue
+                
+                # Convert to format expected by analytics
+                history_data = [{"timestamp": h.timestamp, "price": h.price} for h in history]
+                
+                # Calculate Score
+                current_price = p.current_price or 0.0
+                if current_price > 0:
+                    score = calculate_convenience_score(history_data, current_price)
+                    
+                    # Update if changed
+                    if p.convenience_score != score:
+                        p.convenience_score = score
+                        session.add(p)
+                        count += 1
+            
+            session.commit()
+            print(f"Convenience Scores updated for {count} products.", flush=True)
+    except Exception as e:
+        print(f"Error updating scores: {e}", flush=True)
+
 def run_scrape_job(start_category_idx=0, start_page=1):
     # Categories to scrape
     categories = ["/vino-online/", "/champagne/"]
@@ -186,6 +235,12 @@ def run_scrape_job(start_category_idx=0, start_page=1):
             print(f"Error scraping category {cat}: {e}", flush=True)
             
     print("Scraping job completed.", flush=True)
+    
+    # Trigger Score Update after full scrape
+    try:
+        update_all_scores()
+    except Exception as e:
+        print(f"Failed to run score update after scrape: {e}", flush=True)
 
 @app.get("/products", response_model=List[ProductRead])
 def get_products(session: Session = Depends(get_session)):
@@ -196,7 +251,7 @@ def get_products(session: Session = Depends(get_session)):
     query = text("""
     SELECT 
         p.id, p.bernabei_code, p.name, p.product_link, p.image_url, 
-        p.category, p.current_price, p.last_checked_at,
+        p.category, p.current_price, p.last_checked_at, p.convenience_score,
         MIN(h.price) as min_price,
         AVG(h.price) as avg_price,
         MAX(h.price) as max_price
@@ -211,7 +266,7 @@ def get_products(session: Session = Depends(get_session)):
     for row in results:
         # Unpack row
         # Order matches SELECT
-        p_id, code, name, link, img, cat, curr, last_check, min_p, avg_p, max_p = row
+        p_id, code, name, link, img, cat, curr, last_check, score, min_p, avg_p, max_p = row
         
         # Determine stats
         is_lowest = False
@@ -238,6 +293,7 @@ def get_products(session: Session = Depends(get_session)):
             category=cat,
             current_price=curr,
             last_checked_at=last_check,
+            convenience_score=round(score, 1) if score is not None else None,
             is_price_ok=is_price_ok,
             is_lowest_all_time=is_lowest,
             discount_percentage=round(discount, 0)

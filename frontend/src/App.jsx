@@ -73,6 +73,7 @@ const App = () => {
             if (sortBy === 'price_asc') return (a.current_price || 0) - (b.current_price || 0);
             if (sortBy === 'price_desc') return (b.current_price || 0) - (a.current_price || 0);
             if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
+            if (sortBy === 'score_desc') return (b.convenience_score || 0) - (a.convenience_score || 0);
             if (sortBy === 'date_desc') return new Date(b.last_checked_at || 0) - new Date(a.last_checked_at || 0);
             if (sortBy === 'date_asc') return new Date(a.last_checked_at || 0) - new Date(b.last_checked_at || 0);
             return 0;
@@ -143,6 +144,7 @@ const App = () => {
                         <option value="price_asc">Price (Low to High)</option>
                         <option value="price_desc">Price (High to Low)</option>
                         <option value="name_asc">Name (A-Z)</option>
+                        <option value="score_desc">Convenience Score (High to Low)</option>
                         <option value="date_desc">Last Updated (Newest)</option>
                         <option value="date_asc">Last Updated (Oldest)</option>
                     </select>
@@ -176,6 +178,15 @@ const App = () => {
                                 {product.is_price_ok && (
                                     <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
                                         Prezzo OK
+                                    </span>
+                                )}
+                                {product.convenience_score !== null && product.convenience_score !== undefined && (
+                                    <span className={`text-white text-xs font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1 ${
+                                        product.convenience_score >= 8 ? 'bg-gradient-to-r from-emerald-500 to-green-600' :
+                                        product.convenience_score >= 5 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
+                                        'bg-gray-600'
+                                    }`}>
+                                        Score: {product.convenience_score}
                                     </span>
                                 )}
                             </div>

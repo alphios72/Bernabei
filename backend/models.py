@@ -10,6 +10,7 @@ class ProductBase(SQLModel):
     category: Optional[str] = None
     current_price: Optional[float] = None
     last_checked_at: Optional[datetime] = None
+    convenience_score: Optional[float] = Field(default=None, index=True) # New Score (0-10)
 
 class Product(ProductBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -19,7 +20,9 @@ class ProductRead(ProductBase):
     id: int
     is_price_ok: bool = False
     is_lowest_all_time: bool = False
+    is_lowest_all_time: bool = False
     discount_percentage: float = 0.0
+    convenience_score: Optional[float] = None
 
 class PriceHistory(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

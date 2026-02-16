@@ -5,3 +5,5 @@ requests
 beautifulsoup4
 aiosqlite
 apscheduler
+pandas
+numpy
