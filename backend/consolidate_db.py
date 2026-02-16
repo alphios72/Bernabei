@@ -17,7 +17,10 @@ if not os.path.exists(DB_NAME):
         DB_NAME = f"backend/{DB_NAME}"
 
 sqlite_url = f"sqlite:///{DB_NAME}"
-engine = create_engine(sqlite_url)
+# Increase timeout to 60 seconds to avoid "database is locked" errors
+# if the scraper is running concurrently.
+connect_args = {"check_same_thread": False, "timeout": 60}
+engine = create_engine(sqlite_url, connect_args=connect_args)
 
 def consolidate_duplicates():
     logger.info("Starting database consolidation...")
