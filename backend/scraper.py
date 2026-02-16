@@ -168,7 +168,18 @@ def scrape_category_page(url_suffix, save_callback=None, start_page=1):
 
                     # Image
                     img_elem = product.find('img')
-                    image_url = img_elem.get('src') if img_elem else None
+                    image_url = None
+                    if img_elem:
+                        # Handle lazy loading (data-src, data-original)
+                        image_url = img_elem.get('data-src') or img_elem.get('data-original') or img_elem.get('src')
+                        
+                        # Handle relative URLs
+                        if image_url:
+                            if not image_url.startswith('http') and not image_url.startswith('data:'):
+                                if image_url.startswith('//'):
+                                    image_url = f"https:{image_url}"
+                                else:
+                                    image_url = f"{base_url}{image_url}" if image_url.startswith('/') else f"{base_url}/{image_url}"
                     
                     # Prices
                     current_price = None
