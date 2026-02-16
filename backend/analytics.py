@@ -64,8 +64,17 @@ def calculate_convenience_score(history_data, current_price):
     # seasonal_weight ignored for now (assumed 1) unless specified
     
     dates = series.index
+    # Ensure we are working with values, not index operations that might return Index
     days_diff = (t0 - dates).days
+    # keys to use for weights
     weights = np.exp(-days_diff / tau)
+    
+    # If weights is a pandas Index or Series with index, it might cause issues. 
+    # Convert to pure numpy array to be safe.
+    if hasattr(weights, 'values'):
+        weights = weights.values
+    else:
+        weights = np.array(weights)
     
     # A) Weighted percentile q
     # q = sum_{p_i <= p0} w_i / sum w_i
