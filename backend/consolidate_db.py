@@ -67,20 +67,31 @@ def consolidate_duplicates():
                 master = group[0]
                 others = group[1:]
                 
-                logger.info(f"  Keeping Master: {master.id} ({master.bernabei_code}) - {master.name}")
+                # Refresh master to ensure clean state
+                session.refresh(master)
                 
                 for other in others:
                     logger.info(f"  Merging & Deleting: {other.id} ({other.bernabei_code})")
                     
                     # Move history to master
                     history_entries = session.exec(select(PriceHistory).where(PriceHistory.product_id == other.id)).all()
-                    for h in history_entries:
-                        h.product_id = master.id
-                        session.add(h)
                     
+                    if history_entries:
+                        for h in history_entries:
+                            h.product_id = master.id
+                            session.add(h)
+                        # Flush the history moves so they are no longer associated with 'other' in the DB
+                        session.flush()
+                        
+                        # Refresh 'other' so it knows its children are gone
+                        session.refresh(other)
+
                     # Delete duplicate product
                     session.delete(other)
                     deleted_count += 1
+                    
+                    # Commit per group to keep transaction size manageable and save progress
+                    session.commit()
         
         session.commit()
         logger.info(f"Consolidation complete. Found {duplicates_found} duplicate groups. Deleted {deleted_count} duplicate products.")
