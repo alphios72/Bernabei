@@ -17,8 +17,24 @@ def parse_price(price_str):
     except ValueError:
         return None
 
-def extract_product_id(product_elem):
-    # Try finding the add-to-cart button which contains product ID in onclick or class
+def extract_product_id(product_elem, product_link=None):
+    # Strategy 1: URL Slug (Most reliable for stability if URL doesn't change)
+    if product_link:
+        # url: https://www.bernabei.it/vino-bianco/chardonnay
+        # slug: chardonnay
+        try:
+            # Remove query params
+            clean_link = product_link.split('?')[0]
+            # Remove trailing slash
+            if clean_link.endswith('/'):
+                clean_link = clean_link[:-1]
+            slug = clean_link.split('/')[-1]
+            if slug:
+                return slug
+        except Exception:
+            pass
+
+    # Strategy 2: Try finding the add-to-cart button which contains product ID in onclick or class
     try:
         btn = product_elem.find('button', class_='btn-cart')
         if btn:
@@ -28,7 +44,7 @@ def extract_product_id(product_elem):
             if match:
                 return match.group(1)
             
-        # Fallback: check price id "product-price-19132..."
+        # Strategy 3: Check price id "product-price-19132..."
         prices = product_elem.find_all(id=re.compile(r'product-price-'))
         for p in prices:
             match = re.search(r'product-price-(\d+)', p['id'])
@@ -36,6 +52,7 @@ def extract_product_id(product_elem):
                 return match.group(1)
     except Exception:
         pass
+    
     return None
 
 class BlockingError(Exception):
@@ -140,15 +157,14 @@ def scrape_category_page(url_suffix, save_callback=None, start_page=1):
                         link = f"{base_url}{link}"
                     
                     # ID
-                    p_id = extract_product_id(product)
+                    p_id = extract_product_id(product, link)
                     if not p_id: 
-                        # fallback to generating one from link slug
-                        if link:
-                            p_id = link.split('/')[-1]
-                        else:
-                            # Deterministic hash fallback
-                            import hashlib
-                            p_id = f"unknown_{hashlib.md5(name.encode()).hexdigest()[:10]}"
+                        # Fallback to deterministic hash of name (normalized)
+                        # We sanitize the name to avoid minor diffs causing new IDs
+                        clean_name = re.sub(r'\s+', ' ', name).strip().lower()
+                        import hashlib
+                        p_id = f"gen_{hashlib.md5(clean_name.encode()).hexdigest()[:10]}"
+                        print(f"⚠️ WARNING: Could not extract ID for '{name}', using hash: {p_id}", flush=True)
 
                     # Image
                     img_elem = product.find('img')

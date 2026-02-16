@@ -117,20 +117,22 @@ def save_products_to_db(products_data: List[dict]):
                     .order_by(PriceHistory.timestamp.desc())
                 ).first()
                 
-                should_add_history = False
+                # User request: "vorrei conservare nel database tutte le rilevazioni"
+                # We save every reading regardless of price change or date.
+                should_add_history = True
                 
-                if not last_history:
-                    should_add_history = True
-                else:
-                    # Check price change
-                    if last_history.price != (p_data.get("price") or 0.0):
-                            should_add_history = True
-                    else:
-                        # Check if we have a reading today
-                        last_date = last_history.timestamp.date()
-                        today_date = datetime.utcnow().date()
-                        if last_date != today_date:
-                            should_add_history = True
+                # if not last_history:
+                #     should_add_history = True
+                # else:
+                #     # Check price change
+                #     if last_history.price != (p_data.get("price") or 0.0):
+                #             should_add_history = True
+                #     else:
+                #         # Check if we have a reading today
+                #         last_date = last_history.timestamp.date()
+                #         today_date = datetime.utcnow().date()
+                #         if last_date != today_date:
+                #             should_add_history = True
                 
                 if should_add_history:
                     history = PriceHistory(
