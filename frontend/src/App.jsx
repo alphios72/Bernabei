@@ -100,14 +100,6 @@ const App = () => {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
-                    <button 
-                        onClick={handleScrape}
-                        disabled={scraping}
-                        className={`flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-lg transition-all shadow-lg shadow-blue-500/20 font-medium whitespace-nowrap ${scraping ? 'opacity-75 cursor-not-allowed' : ''}`}
-                    >
-                        <RefreshCw className={`w-5 h-5 ${scraping ? 'animate-spin' : ''}`} />
-                        {scraping ? 'Updating...' : 'Update Prices'}
-                    </button>
                 </div>
             </header>
 
@@ -265,9 +257,10 @@ const App = () => {
                     </p>
                     <button 
                         onClick={handleScrape}
-                        className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                        disabled={scraping}
+                        className={`px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors ${scraping ? 'opacity-75 cursor-not-allowed' : ''}`}
                     >
-                        Start First Scrape
+                        {scraping ? 'Scraping in progress...' : 'Start First Scrape'}
                     </button>
                 </div>
             )}

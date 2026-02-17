@@ -225,18 +225,21 @@ def update_all_scores():
                 # Calculate Score
                 current_price = p.current_price or 0.0
                 if current_price > 0:
-                    score = calculate_convenience_score(history_data, current_price)
-                    
-                    # Update if changed
-                    if p.convenience_score != score:
-                        p.convenience_score = score
-                        session.add(p)
-                        count += 1
-            
+                    try:
+                        score = calculate_convenience_score(history_data, current_price)
+                        
+                        # Update if changed
+                        if p.convenience_score != score:
+                            p.convenience_score = score
+                            session.add(p)
+                            count += 1
+                    except Exception as loop_e:
+                        print(f"Error calculating score for {p.bernabei_code}: {loop_e}", flush=True)
+
             session.commit()
             print(f"Convenience Scores updated for {count} products.", flush=True)
     except Exception as e:
-        print(f"Error updating scores: {e}", flush=True)
+        print(f"Error in batch update scores: {e}", flush=True)
 
 def run_scrape_job(start_category_idx=0, start_page=1):
     # Categories to scrape
