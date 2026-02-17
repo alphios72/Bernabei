@@ -94,10 +94,37 @@ def save_products_to_db(products_data: List[dict]):
     with Session(engine) as session:
         for p_data in products_data:
             try:
-                # Check if product exists
-                # Use unique constraint on bernabei_code
+                # Improved Deduplication Logic
+                # 1. Try finding by Bernabei Code (ID)
                 statement = select(Product).where(Product.bernabei_code == p_data["bernabei_code"])
                 existing_product = session.exec(statement).first()
+                
+                # 2. If not found by ID, try finding by CLEAN URL SLUG
+                # This prevents "soft duplicates" where ID extraction fails or changes slightly
+                if not existing_product:
+                    products = session.exec(select(Product)).all()
+                    
+                    # Extract current slug
+                    current_link = p_data.get("product_link", "")
+                    current_slug = None
+                    if current_link:
+                         current_slug = current_link.split('?')[0].strip('/').split('/')[-1]
+
+                    if current_slug:
+                        # Scan existing products for same slug
+                        # This is slightly slower but safer against duplicates
+                        # Given dataset size (<10k), it's acceptable for now or we can index slug
+                        for p in products:
+                            if p.product_link:
+                                p_slug = p.product_link.split('?')[0].strip('/').split('/')[-1]
+                                if p_slug == current_slug:
+                                    existing_product = p
+                                    break
+                
+                # 3. If still not found, try by Exact Name match (fallback for no-link items)
+                if not existing_product and p_data.get("name"):
+                    statement = select(Product).where(Product.name == p_data.get("name"))
+                    existing_product = session.exec(statement).first()
                 
                 if not existing_product:
                     existing_product = Product(
@@ -105,17 +132,31 @@ def save_products_to_db(products_data: List[dict]):
                         name=p_data.get("name"),
                         product_link=p_data.get("product_link"),
                         image_url=p_data.get("image_url"),
-                        category=p_data.get("category", ""), # Category might be missing in p_data if not passed, but we can fix scraper to include it or pass it in closure
-                        current_price=p_data.get("price"),
+                        # Category might be missing in p_data so defaulting to empty string
+                        category=p_data.get("category", ""), 
+                        current_price=p_data.get("price") or 0.0,
                         last_checked_at=datetime.utcnow()
                     )
                     session.add(existing_product)
                     session.commit()
                     session.refresh(existing_product)
                 else:
+                    # Update existing product
                     existing_product.last_checked_at = datetime.utcnow()
+                    
+                    # If we found it by slug/name but the incoming data has a better ID (not a hash), update ID?
+                    # Let's keep existing ID stable unless it lacks one.
+                    # Or maybe update image/price
                     if p_data.get("image_url"): existing_product.image_url = p_data.get("image_url")
-                    if p_data.get("price"): existing_product.current_price = p_data.get("price")
+                    
+                    current_p = p_data.get("price")
+                    if current_p is not None:
+                         existing_product.current_price = current_p
+                         
+                    # Also update link if changed (e.g. redirect)
+                    if p_data.get("product_link"):
+                        existing_product.product_link = p_data.get("product_link")
+
                     session.add(existing_product)
                     session.commit()
                     session.refresh(existing_product)
